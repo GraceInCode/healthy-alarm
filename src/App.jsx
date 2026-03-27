@@ -119,7 +119,7 @@ function App() {
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(video, 0, 0);
 
     const photoData = canvas.toDataURL("image/jpeg", 0.9);
@@ -281,13 +281,20 @@ function App() {
           )}
 
           {cameraPermission === "granted" ? (
-            <button
-              onClick={takeSkyPhoto}
-              className="mt-8 bg-white text-black font-bold text-2xl px-16 py-6 rounded-full flex items-center gap-4 active:scale-95 transition shadow-xl"
-            >
-              <Camera className="w-8 h-8" />
-              TAKE SKY PHOTO
-            </button>
+            <>
+              <button
+                onClick={takeSkyPhoto}
+                className="mt-8 bg-white text-black font-bold text-2xl px-16 py-6 rounded-full flex items-center gap-4 active:scale-95 transition shadow-xl"
+              >
+                <Camera className="w-8 h-8" />
+                TAKE SKY PHOTO
+              </button>
+              {capturedPhoto && !skyValid && (
+                <p className="mt-4 text-red-400 font-semibold text-center">
+                  ❌ That doesn't look like the sky. Go outside and try again!
+                </p>
+              )}
+            </>
           ) : (
             <button
               onClick={stopAlarm}
