@@ -9,7 +9,6 @@ function App() {
   const [streak, setStreak] = useState(7);
   const [todayPhoto, setTodayPhoto] = useState(null);
 
-  // Camera & permission states
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [stream, setStream] = useState(null);
@@ -17,30 +16,24 @@ function App() {
   const [skyValid, setSkyValid] = useState(false);
   const [cameraPermission, setCameraPermission] = useState("unknown");
 
-  // Ref to always have the latest time inside the interval
   const currentTimeRef = useRef(currentTime);
   useEffect(() => {
     currentTimeRef.current = currentTime;
   }, [currentTime]);
 
-  // Live clock
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Reliable alarm checker (runs every 5 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = format(currentTimeRef.current, "HH:mm");
-      if (now === alarmTime && !isAlarmRinging) {
-        triggerAlarm();
-      }
+      if (now === alarmTime && !isAlarmRinging) triggerAlarm();
     }, 5000);
     return () => clearInterval(interval);
   }, [alarmTime, isAlarmRinging]);
 
-  // Request camera permission upfront
   const requestCameraPermission = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -50,7 +43,7 @@ function App() {
       mediaStream.getTracks().forEach((track) => track.stop());
       setCameraPermission("granted");
       alert("✅ Camera permission granted! SkyWake is ready.");
-    } catch (err) {
+    } catch {
       setCameraPermission("denied");
       alert(
         "❌ Camera permission denied.\n\nSkyWake will still work as a normal alarm clock.",
@@ -58,13 +51,11 @@ function App() {
     }
   };
 
-  // Trigger alarm
   const triggerAlarm = async () => {
     setIsAlarmRinging(true);
     setCapturedPhoto(null);
     setSkyValid(false);
 
-    // Loud beeping
     const audioContext = new (
       window.AudioContext || window.webkitAudioContext
     )();
@@ -81,14 +72,12 @@ function App() {
     };
     const beepInterval = setInterval(beep, 600);
 
-    // Keep screen awake
     if ("wakeLock" in navigator) {
       try {
         await navigator.wakeLock.request("screen");
       } catch {}
     }
 
-    // Start camera only if permitted
     if (cameraPermission === "granted") {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -103,11 +92,10 @@ function App() {
     window.stopAlarmSound = () => {
       clearInterval(beepInterval);
       oscillator?.stop();
-      stream?.getTracks().forEach((track) => track.stop());
+      stream?.getTracks().forEach((t) => t.stop());
     };
   };
 
-  // Take sky photo
   const takeSkyPhoto = () => {
     if (!videoRef.current || !canvasRef.current || !stream) {
       alert("Camera not ready. Please grant permission first.");
@@ -119,7 +107,7 @@ function App() {
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
 
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0);
 
     const photoData = canvas.toDataURL("image/jpeg", 0.9);
@@ -127,24 +115,36 @@ function App() {
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
+
     let r = 0,
       g = 0,
       b = 0,
-      brightness = 0;
+      brightness = 0,
+      bluePixels = 0;
     for (let i = 0; i < data.length; i += 4) {
       r += data[i];
       g += data[i + 1];
       b += data[i + 2];
       brightness += data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11;
+      if (data[i + 2] > data[i] && data[i + 2] > data[i + 1]) bluePixels++;
     }
-    const avgB = b / (data.length / 4);
+
     const avgR = r / (data.length / 4);
+    const avgG = g / (data.length / 4);
+    const avgB = b / (data.length / 4);
     const avgBrightness = brightness / (data.length / 4);
+    const blueRatio = bluePixels / (data.length / 4);
 
-    const isSky = avgB > avgR * 1.1 && avgBrightness > 40;
-    setSkyValid(isSky);
+    // Super forgiving but smart detection
+    const isSkyLike =
+      avgBrightness > 70 || // very bright morning
+      (avgB > 90 && blueRatio > 0.35) || // clear blue sky
+      (avgBrightness > 25 && blueRatio > 0.28) || // cloudy / twilight
+      (avgBrightness > 12 && blueRatio > 0.22 && avgB > avgR); // night sky (stars, dark blue)
 
-    if (isSky) {
+    setSkyValid(isSkyLike);
+
+    if (isSkyLike) {
       stopAlarm();
       setTodayPhoto(photoData);
       setStreak((prev) => {
@@ -159,11 +159,10 @@ function App() {
   const stopAlarm = () => {
     window.stopAlarmSound?.();
     setIsAlarmRinging(false);
-    stream?.getTracks().forEach((track) => track.stop());
+    stream?.getTracks().forEach((t) => t.stop());
     setStream(null);
   };
 
-  // Load saved data
   useEffect(() => {
     const savedPhoto = localStorage.getItem("todaySkyPhoto");
     const savedStreak = localStorage.getItem("streak");
@@ -243,18 +242,14 @@ function App() {
         >
           Save Alarm
         </button>
-
-        {/* Instant test button */}
         <button
           onClick={triggerAlarm}
           className="mt-4 w-full bg-white text-black hover:bg-slate-100 py-5 rounded-2xl font-semibold text-lg flex items-center justify-center gap-3 transition active:scale-95"
         >
-          <Play className="w-5 h-5" />
-          Test Alarm Now
+          <Play className="w-5 h-5" /> Test Alarm Now
         </button>
       </div>
 
-      {/* ALARM MODAL */}
       {isAlarmRinging && (
         <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-6">
           <div className="text-center mb-8">
@@ -281,20 +276,12 @@ function App() {
           )}
 
           {cameraPermission === "granted" ? (
-            <>
-              <button
-                onClick={takeSkyPhoto}
-                className="mt-8 bg-white text-black font-bold text-2xl px-16 py-6 rounded-full flex items-center gap-4 active:scale-95 transition shadow-xl"
-              >
-                <Camera className="w-8 h-8" />
-                TAKE SKY PHOTO
-              </button>
-              {capturedPhoto && !skyValid && (
-                <p className="mt-4 text-red-400 font-semibold text-center">
-                  ❌ That doesn't look like the sky. Go outside and try again!
-                </p>
-              )}
-            </>
+            <button
+              onClick={takeSkyPhoto}
+              className="mt-8 bg-white text-black font-bold text-2xl px-16 py-6 rounded-full flex items-center gap-4 active:scale-95 transition shadow-xl"
+            >
+              <Camera className="w-8 h-8" /> TAKE SKY PHOTO
+            </button>
           ) : (
             <button
               onClick={stopAlarm}
@@ -302,6 +289,27 @@ function App() {
             >
               DISMISS ALARM
             </button>
+          )}
+
+          {capturedPhoto && cameraPermission === "granted" && (
+            <div className="mt-6 text-center">
+              {skyValid ? (
+                <div className="text-emerald-400 font-bold text-xl">
+                  ✅ Perfect sky! Alarm stopped.
+                </div>
+              ) : (
+                <div className="text-amber-400">
+                  Not quite sky-like yet.
+                  <br />
+                  Try pointing higher at the sky!
+                </div>
+              )}
+              <img
+                src={capturedPhoto}
+                className="mt-4 w-48 rounded-2xl mx-auto"
+                alt="Captured"
+              />
+            </div>
           )}
 
           <button
