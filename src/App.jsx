@@ -96,6 +96,7 @@ function App() {
     };
   };
 
+  // === TIGHTENED SKY DETECTION (rejects selfies & indoors) ===
   const takeSkyPhoto = () => {
     if (!videoRef.current || !canvasRef.current || !stream) {
       alert("Camera not ready. Please grant permission first.");
@@ -135,16 +136,22 @@ function App() {
     const avgBrightness = brightness / (data.length / 4);
     const blueRatio = bluePixels / (data.length / 4);
 
-    // Super forgiving but smart detection
+    // Stronger sky conditions
     const isSkyLike =
-      avgBrightness > 70 || // very bright morning
-      (avgB > 90 && blueRatio > 0.35) || // clear blue sky
-      (avgBrightness > 25 && blueRatio > 0.28) || // cloudy / twilight
-      (avgBrightness > 12 && blueRatio > 0.22 && avgB > avgR); // night sky (stars, dark blue)
+      avgBrightness > 85 || // very bright morning
+      (avgB > 100 && blueRatio > 0.4) || // clear blue sky
+      (avgBrightness > 40 && blueRatio > 0.33) || // cloudy / twilight
+      (avgBrightness > 18 && blueRatio > 0.27 && avgB > avgR * 1.2); // night sky
 
-    setSkyValid(isSkyLike);
+    // Reject obvious skin/face/indoors
+    const hasSkinTone =
+      avgR > 70 && avgG > 55 && avgB < 65 && avgR + avgG > avgB * 2.5;
 
-    if (isSkyLike) {
+    const isSky = isSkyLike && !hasSkinTone;
+
+    setSkyValid(isSky);
+
+    if (isSky) {
       stopAlarm();
       setTodayPhoto(photoData);
       setStreak((prev) => {
@@ -283,9 +290,12 @@ function App() {
               >
                 <Camera className="w-8 h-8" /> TAKE SKY PHOTO
               </button>
+
               {capturedPhoto && !skyValid && (
-                <p className="mt-4 text-red-400 font-semibold text-center">
-                  ❌ That doesn't look like the sky. Go outside and try again!
+                <p className="mt-4 text-red-400 font-semibold text-center px-6">
+                  ❌ That doesn't look like the sky.
+                  <br />
+                  Point the camera at the actual sky and try again!
                 </p>
               )}
             </>
