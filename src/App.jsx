@@ -96,7 +96,7 @@ function App() {
     };
   };
 
-  // === TIGHTENED SKY DETECTION (rejects selfies & indoors) ===
+  // === STRICT SKY DETECTION (rejects almost everything except real sky) ===
   const takeSkyPhoto = () => {
     if (!videoRef.current || !canvasRef.current || !stream) {
       alert("Camera not ready. Please grant permission first.");
@@ -120,32 +120,51 @@ function App() {
     let r = 0,
       g = 0,
       b = 0,
-      brightness = 0,
+      brightnessSum = 0,
       bluePixels = 0;
+    let brightnessValues = []; // for variance calculation
+
     for (let i = 0; i < data.length; i += 4) {
-      r += data[i];
-      g += data[i + 1];
-      b += data[i + 2];
-      brightness += data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11;
-      if (data[i + 2] > data[i] && data[i + 2] > data[i + 1]) bluePixels++;
+      const red = data[i];
+      const green = data[i + 1];
+      const blue = data[i + 2];
+
+      r += red;
+      g += green;
+      b += blue;
+      const brightness = red * 0.3 + green * 0.59 + blue * 0.11;
+      brightnessSum += brightness;
+      brightnessValues.push(brightness);
+
+      if (blue > red && blue > green) bluePixels++;
     }
 
-    const avgR = r / (data.length / 4);
-    const avgG = g / (data.length / 4);
-    const avgB = b / (data.length / 4);
-    const avgBrightness = brightness / (data.length / 4);
-    const blueRatio = bluePixels / (data.length / 4);
+    const totalPixels = data.length / 4;
+    const avgR = r / totalPixels;
+    const avgG = g / totalPixels;
+    const avgB = b / totalPixels;
+    const avgBrightness = brightnessSum / totalPixels;
+    const blueRatio = bluePixels / totalPixels;
 
-    // Stronger sky conditions
+    // Calculate brightness variance (sky is relatively uniform)
+    const meanBrightness = avgBrightness;
+    let variance = 0;
+    for (let val of brightnessValues) {
+      variance += Math.pow(val - meanBrightness, 2);
+    }
+    variance = variance / totalPixels;
+
+    // Final strict conditions
     const isSkyLike =
-      avgBrightness > 85 || // very bright morning
-      (avgB > 100 && blueRatio > 0.4) || // clear blue sky
-      (avgBrightness > 40 && blueRatio > 0.33) || // cloudy / twilight
-      (avgBrightness > 18 && blueRatio > 0.27 && avgB > avgR * 1.2); // night sky
+      avgBrightness > 12 && // not almost black
+      blueRatio > 0.38 && // strong blue presence
+      avgB > avgR * 1.25 &&
+      avgB > avgG * 1.25 && // blue dominance
+      variance < 1800; // smooth sky (low variance)
 
-    // Reject obvious skin/face/indoors
+    // Extra rejection for skin/face/indoors
     const hasSkinTone =
-      avgR > 70 && avgG > 55 && avgB < 65 && avgR + avgG > avgB * 2.5;
+      avgR > 80 && avgG > 50 && avgB < 70 && avgR + avgG > avgB * 2.8;
 
     const isSky = isSkyLike && !hasSkinTone;
 
@@ -295,7 +314,7 @@ function App() {
                 <p className="mt-4 text-red-400 font-semibold text-center px-6">
                   ❌ That doesn't look like the sky.
                   <br />
-                  Point the camera at the actual sky and try again!
+                  Point the camera UP at the actual sky and try again!
                 </p>
               )}
             </>
