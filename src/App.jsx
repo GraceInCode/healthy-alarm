@@ -276,12 +276,19 @@ function App() {
           )}
 
           {cameraPermission === "granted" ? (
-            <button
-              onClick={takeSkyPhoto}
-              className="mt-8 bg-white text-black font-bold text-2xl px-16 py-6 rounded-full flex items-center gap-4 active:scale-95 transition shadow-xl"
-            >
-              <Camera className="w-8 h-8" /> TAKE SKY PHOTO
-            </button>
+            <>
+              <button
+                onClick={takeSkyPhoto}
+                className="mt-8 bg-white text-black font-bold text-2xl px-16 py-6 rounded-full flex items-center gap-4 active:scale-95 transition shadow-xl"
+              >
+                <Camera className="w-8 h-8" /> TAKE SKY PHOTO
+              </button>
+              {capturedPhoto && !skyValid && (
+                <p className="mt-4 text-red-400 font-semibold text-center">
+                  ❌ That doesn't look like the sky. Go outside and try again!
+                </p>
+              )}
+            </>
           ) : (
             <button
               onClick={stopAlarm}
@@ -289,27 +296,6 @@ function App() {
             >
               DISMISS ALARM
             </button>
-          )}
-
-          {capturedPhoto && cameraPermission === "granted" && (
-            <div className="mt-6 text-center">
-              {skyValid ? (
-                <div className="text-emerald-400 font-bold text-xl">
-                  ✅ Perfect sky! Alarm stopped.
-                </div>
-              ) : (
-                <div className="text-amber-400">
-                  Not quite sky-like yet.
-                  <br />
-                  Try pointing higher at the sky!
-                </div>
-              )}
-              <img
-                src={capturedPhoto}
-                className="mt-4 w-48 rounded-2xl mx-auto"
-                alt="Captured"
-              />
-            </div>
           )}
 
           <button
